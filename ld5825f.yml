@@ -1,0 +1,247 @@
+esphome:
+  name: "esp32s-ld5825f-demo"
+  project:
+    name: recker.demo
+    version: 1.0.0
+  includes:
+      - ld5825f_uart.h
+
+esp32:
+  board: nodemcu-32s
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+  #level: VERBOSE #makes uart stream available in esphome logstream
+  #baud_rate: 0 #disable logging over uart
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "********************************************"
+  
+ota:
+  password: "********"
+  
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  manual_ip:
+    static_ip: 192.168.**.**
+    gateway: 192.168.**.*
+    subnet: 255.255.255.0
+  
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Esp32S-Ld5825F-Demo"
+    password: "********"
+  
+captive_portal:
+  
+web_server:
+  port: 80
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+  scan: true
+    
+uart:
+  id: uart_bus
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 115200
+  # debug:
+  #   direction: BOTH
+  #   dummy_receiver: true
+  #   after:
+  #     delimiter: "\n"
+  #   sequence:
+  #     - lambda: UARTDebug::log_string(direction, bytes);
+
+number:
+  - platform: template
+    id: mth1
+    name: "mth1 3.5米内灵敏度设置"
+    icon: "mdi:radar"
+    mode: box
+    min_value: 40
+    max_value: 400
+    initial_value: 60
+    optimistic: true
+    step: 5
+    restore_value: true
+    #unit_of_measurement: ms
+    set_action:
+      - uart.write: !lambda
+                      int mth1 = (int)ceil(x / 1.0);
+                      std::string mss = "mth1=" + to_string(mth1) + "\r\n";
+                      return std::vector<unsigned char>(mss.begin(), mss.end());
+                      
+  - platform: template
+    id: mth2
+    name: "mth2 3.5~10米灵敏度设置"
+    icon: "mdi:radar"
+    mode: box
+    min_value: 40
+    max_value: 400
+    initial_value: 55
+    optimistic: true
+    step: 5
+    restore_value: true
+    #unit_of_measurement: ms
+    set_action:
+      - uart.write: !lambda
+                      int mth2 = (int)ceil(x / 1.0);
+                      std::string mss = "mth2=" + to_string(mth2) + "\r\n";
+                      return std::vector<unsigned char>(mss.begin(), mss.end());
+                      
+  - platform: template
+    id: mth3
+    name: "mth3 10米以上灵敏度设置"
+    icon: "mdi:radar"
+    mode: box
+    min_value: 40
+    max_value: 400
+    initial_value: 40
+    optimistic: true
+    step: 50
+    restore_value: true
+    #unit_of_measurement: ms
+    set_action:
+      - uart.write: !lambda
+                      int mth3 = (int)ceil(x / 1.0);
+                      std::string mss = "mth3=" + to_string(mth3) + "\r\n";
+                      return std::vector<unsigned char>(mss.begin(), mss.end());
+                      
+  - platform: template
+    id: rmax
+    name: "rmax 最大检测距离"
+    icon: "mdi:arrow-expand-horizontal"
+    mode: box
+    min_value: 10
+    max_value: 1400
+    initial_value: 600
+    optimistic: true
+    step: 1
+    restore_value: true
+    unit_of_measurement: "厘米"
+    set_action:
+      - uart.write: !lambda
+                      float rmax = (float)(x / 100.0);
+                      std::string mss = "rmax=" + to_string(rmax) + "\r\n";
+                      return std::vector<unsigned char>(mss.begin(), mss.end());
+                      
+  - platform: template
+    id: tons
+    name: "切换无人时间"
+    icon: "mdi:motion-sensor-off"
+    mode: box
+    min_value: 1
+    max_value: 100
+    initial_value: 15
+    optimistic: true
+    step: 1
+    restore_value: true
+    unit_of_measurement: "秒"
+    set_action:
+      - uart.write: !lambda
+                      int tons = (int)ceil(x / 1.0);
+                      std::string mss = "tons=" + to_string(tons) + "\r\n";
+                      return std::vector<unsigned char>(mss.begin(), mss.end());
+                      
+  - platform: template
+    id: utons
+    name: "Uart帧间隔"
+    icon: "mdi:camera-timer"
+    mode: box
+    min_value: 50
+    max_value: 1000
+    initial_value: 100
+    optimistic: true
+    step: 50
+    restore_value: true
+    unit_of_measurement: "毫秒"
+    set_action:
+      - uart.write: !lambda
+                      int utons = (int)ceil(x / 1.0);
+                      std::string mss = "utons=" + to_string(utons) + "\r\n";
+                      return std::vector<unsigned char>(mss.begin(), mss.end());
+                      
+button:
+  - platform: template
+    id: save
+    name: "save 保存"
+    icon: "mdi:content-save"
+    on_press:
+      - uart.write: "save\r\n"
+
+  - platform: template
+    id: get_all
+    name: "get_all 获取参数"
+    icon: "mdi:information"
+    on_press:
+      - uart.write: "get_all\r\n"
+
+  - platform: template
+    id: initial
+    name: "initial 恢复出厂设置"
+    icon: "mdi:restore-alert"
+    on_press:
+      - uart.write: "initial\r\n"
+
+sensor:
+- platform: custom
+  lambda: |-
+    auto my_custom_sensor = new UartReadLineSensor(id(uart_bus));
+    App.register_component(my_custom_sensor);
+    return {my_custom_sensor->distance_sensor};
+  sensors:
+    - name: "dis 距离"
+      icon: "mdi:arrow-expand-horizontal"
+      id: "uart_readline"
+      unit_of_measurement: "厘米"
+      # accuracy_decimals: 1
+
+- platform: bh1750
+  name: "test illuminance"
+  address: 0x23
+  update_interval: 10s
+
+- platform: aht10
+  temperature:
+    name: "test temperature"
+    id: test_wendu
+    filters:
+      - lambda: return x - 0.0;
+  humidity:
+    name: "test humidity"
+    id: test_shidu
+    filters:
+      - lambda: return x + 0.0;
+  update_interval: 10s
+
+text_sensor:
+  - platform: template
+    name: "test motion ld"
+    id: "mmWave"
+    icon: mdi:motion-sensor
+  
+  - platform: wifi_info
+    ssid:
+      name: Connected SSID
+      icon: "mdi:signal-variant"
+    ip_address:
+      name: IP Address
+      icon: "mdi:ip-network"
+    mac_address:
+      name: Mac Address
+      icon: "mdi:wifi-marker"
+
+binary_sensor:
+  - platform: gpio
+    pin: GPIO32
+    name: "test motion ir"
+    device_class: motion
+
